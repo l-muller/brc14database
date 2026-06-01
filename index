@@ -1,1 +1,548 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRC14 Database</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f5f2ed;
+    --surface: #ffffff;
+    --border: #ddd8cf;
+    --text: #1a1815;
+    --text-muted: #7a7468;
+    --accent: #1F4E6B;
+    --accent-light: #2d6f96;
+    --accent-bg: #e8f0f5;
+    --gold: #c8922a;
+    --gold-light: #f0e0c0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'IBM Plex Mono', monospace; background: var(--bg); color: var(--text); font-size: 13px; }
 
+  header {
+    background: var(--accent); color: white; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid var(--gold);
+  }
+  .logo { font-family: 'Spectral', serif; font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  .logo span { color: var(--gold); }
+  .header-subtitle { font-size: 11px; opacity: 0.7; letter-spacing: 0.5px; margin-top: 2px; }
+
+  .lang-toggle { display: flex; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden; }
+  .lang-btn {
+    padding: 6px 14px; background: transparent; color: rgba(255,255,255,0.6);
+    border: none; cursor: pointer; font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; font-weight: 500; letter-spacing: 1px; transition: all 0.2s;
+  }
+  .lang-btn.active { background: var(--gold); color: white; }
+  .lang-btn:hover:not(.active) { background: rgba(255,255,255,0.1); color: white; }
+
+  .main { display: grid; grid-template-columns: 280px 1fr; height: calc(100vh - 60px); }
+
+  .sidebar {
+    background: var(--surface); border-right: 1px solid var(--border);
+    overflow-y: auto; display: flex; flex-direction: column;
+  }
+  .sidebar-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { background: var(--accent-bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px; text-align: center; }
+  .stat-number { font-family: 'Spectral', serif; font-size: 24px; font-weight: 600; color: var(--accent); display: block; }
+  .stat-label { font-size: 10px; color: var(--text-muted); }
+
+  .period-display { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: var(--accent); font-weight: 500; }
+  input[type=range] { width: 100%; -webkit-appearance: none; height: 4px; border-radius: 2px; background: var(--border); outline: none; margin: 4px 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+
+  .filter-label { display: block; font-size: 10px; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; margin-top: 10px; }
+  select {
+    width: 100%; padding: 7px 28px 7px 10px; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg); color: var(--text); font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a7468'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .reset-btn {
+    width: 100%; padding: 8px; background: transparent; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s; margin-top: 12px;
+  }
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .map-area { display: flex; flex-direction: column; overflow: hidden; }
+  #map { flex: 1; min-height: 0; }
+
+  .instruction {
+    padding: 7px 16px; background: var(--gold-light); border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text-muted); text-align: center; flex-shrink: 0;
+  }
+
+  .table-wrapper { height: 220px; border-top: 2px solid var(--border); overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
+  .table-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--accent); color: white; flex-shrink: 0; }
+  .table-title { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+  .table-count { font-size: 11px; opacity: 0.7; }
+  .table-scroll { overflow: auto; flex: 1; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead th {
+    background: var(--accent-bg); color: var(--accent); padding: 6px 12px;
+    text-align: left; font-weight: 500; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+    position: sticky; top: 0; z-index: 1;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: var(--accent-bg); }
+  tbody tr.selected { background: var(--gold-light); }
+  tbody td { padding: 5px 12px; color: var(--text); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+
+  .leaflet-popup-content-wrapper { border-radius: 4px; border-top: 3px solid var(--gold); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .popup-name { font-family: 'Spectral', serif; font-size: 15px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+  .popup-row { display: flex; gap: 6px; margin: 3px 0; font-size: 11px; }
+  .popup-key { color: var(--text-muted); min-width: 90px; }
+  .popup-val { color: var(--text); font-weight: 500; }
+
+  .loading {
+    position: fixed; inset: 0; background: var(--accent);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 9999; color: white; gap: 16px;
+  }
+  .loading-logo { font-family: 'Spectral', serif; font-size: 32px; font-weight: 600; letter-spacing: 2px; }
+  .loading-logo span { color: var(--gold); }
+  .loading-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.2); border-radius: 1px; overflow: hidden; }
+  .loading-progress { height: 100%; background: var(--gold); border-radius: 1px; animation: load 1.8s ease forwards; }
+  @keyframes load { from { width: 0% } to { width: 100% } }
+  .loading-text { font-size: 11px; letter-spacing: 2px; opacity: 0.6; }
+
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: auto; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    #map { height: 55vh; }
+    .table-wrapper { height: 300px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-logo">BRC<span>14</span></div>
+  <div class="loading-bar"><div class="loading-progress"></div></div>
+  <div class="loading-text" id="loading-text">CARREGANDO DADOS...</div>
+</div>
+
+<header>
+  <div>
+    <div class="logo">BRC<span>14</span> Database</div>
+    <div class="header-subtitle" id="header-subtitle">Datações radiocarbônicas de sítios arqueológicos brasileiros</div>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('pt')" id="btn-pt">PT</button>
+    <button class="lang-btn" onclick="setLang('en')" id="btn-en">EN</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title" id="lbl-stats">Resultados</div>
+      <div class="stats">
+        <div class="stat-card">
+          <span class="stat-number" id="count-sites">—</span>
+          <span class="stat-label" id="lbl-sites">Sítios Únicos</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="count-dates">—</span>
+          <span class="stat-label" id="lbl-dates">Datações</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title" id="lbl-period">Período (AP)</div>
+      <div class="period-display">
+        <span id="period-min-display">25170</span>
+        <span id="period-max-display">20</span>
+      </div>
+      <input type="range" id="slider-min" min="20" max="25170" value="25170" step="10">
+      <input type="range" id="slider-max" min="20" max="25170" value="20" step="10">
+    </div>
+
+    <div class="sidebar-section">
+      <label class="filter-label" id="lbl-region">Região</label>
+      <select id="filter-region" onchange="applyFilters()"><option value="">Todos</option></select>
+
+      <label class="filter-label" id="lbl-state">Estado</label>
+      <select id="filter-state" onchange="applyFilters()"><option value="">Todos</option></select>
+
+      <label class="filter-label" id="lbl-feature">Característica</label>
+      <select id="filter-feature" onchange="applyFilters()"><option value="">Todos</option></select>
+
+      <label class="filter-label" id="lbl-method">Método</label>
+      <select id="filter-method" onchange="applyFilters()"><option value="">Todos</option></select>
+
+      <label class="filter-label" id="lbl-cultural">Classif. cultural</label>
+      <select id="filter-cultural" onchange="applyFilters()"><option value="">Todos</option></select>
+
+      <button class="reset-btn" onclick="resetFilters()" id="btn-reset">↺ Limpar filtros</button>
+    </div>
+  </div>
+
+  <div class="map-area">
+    <div class="instruction" id="instruction">
+      Clique em um ponto no mapa ou em uma linha da tabela para destacar um sítio. Mantenha <strong>CTRL</strong> para selecionar múltiplos itens. Clique duplo para limpar a seleção.
+    </div>
+    <div id="map"></div>
+    <div class="table-wrapper">
+      <div class="table-header">
+        <span class="table-title" id="lbl-table">Registros</span>
+        <span class="table-count" id="table-count"></span>
+      </div>
+      <div class="table-scroll">
+        <table><thead id="table-head"></thead><tbody id="table-body"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SHEET URLS ────────────────────────────────────────────────
+const SHEET_BASE = 'https://docs.google.com/spreadsheets/d/1PwMl8XN3MHmdz8Al4sMHtdv6nWKbMUGNGuaf8zEJ9ds/gviz/tq?tqx=out:csv&sheet=';
+const SHEETS = { pt: 'BR_higenizado', en: 'EN_Higenizada' };
+
+// PT columns (exact headers from CSV)
+const PT_COLS = {
+  name: 'Nome', lat: 'lat', lng: 'long',
+  region: 'Regiao', state: 'Estado',
+  feature: 'Característica principal',
+  method: 'Metodo de datacao',
+  cultural: 'Classificacao cultural',
+  date: 'Data Conventional AP',
+  sigla: 'Sigla', stddev: 'Desvio padrao',
+  material: 'Material', labcode: 'Código do laboratório'
+};
+
+// EN columns
+const EN_COLS = {
+  name: 'Name', lat: 'lat', lng: 'long',
+  region: 'Region', state: 'State',
+  feature: 'Key feature',
+  method: 'Dating Method',
+  cultural: 'Cultural classification',
+  date: 'Conventional Data BP',
+  sigla: 'ID', stddev: 'Standard deviation',
+  material: 'Material', labcode: 'Lab code'
+};
+
+const T = {
+  pt: {
+    subtitle: 'Datações radiocarbônicas de sítios arqueológicos brasileiros',
+    loading: 'CARREGANDO DADOS...',
+    stats: 'Resultados', sites: 'Sítios Únicos', dates: 'Datações',
+    period: 'Período (AP)', region: 'Região', state: 'Estado',
+    feature: 'Característica', method: 'Método', cultural: 'Classif. cultural',
+    all: 'Todos', reset: '↺ Limpar filtros', table: 'Registros',
+    instruction: 'Clique em um ponto no mapa ou em uma linha da tabela para destacar um sítio. Mantenha <strong>CTRL</strong> para selecionar múltiplos itens. Clique duplo para limpar a seleção.',
+    tableCols: ['Sigla','Nome','Estado','Região','Característica','Método','Data AP','Mat.'],
+    cols: PT_COLS,
+    note: '*AP = "Antes do Presente"; "Presente" = ano de 1950 d.C.'
+  },
+  en: {
+    subtitle: 'Radiocarbon dates from Brazilian archaeological sites',
+    loading: 'LOADING DATA...',
+    stats: 'Results', sites: 'Unique Sites', dates: 'Dates',
+    period: 'Period (BP)', region: 'Region', state: 'State',
+    feature: 'Key feature', method: 'Method', cultural: 'Cultural classif.',
+    all: 'All', reset: '↺ Clear filters', table: 'Records',
+    instruction: 'Click on a map point or table row to highlight a site. Hold <strong>CTRL</strong> to select multiple items. Double-click to clear the selection.',
+    tableCols: ['ID','Name','State','Region','Key feature','Method','Date BP','Mat.'],
+    cols: EN_COLS,
+    note: '*BP = "Before Present"; "Present" = year 1950 A.D.'
+  }
+};
+
+// ── STATE ─────────────────────────────────────────────────────
+let lang = 'pt';
+let allData = { pt: [], en: [] };
+let filtered = [];
+let markerLayer;
+let map;
+let selectedRows = new Set();
+
+// ── MAP ───────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map').setView([-15, -52], 4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO', maxZoom: 18
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+// ── FETCH ─────────────────────────────────────────────────────
+async function fetchSheet(l) {
+  const url = SHEET_BASE + SHEETS[l];
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+  const text = await res.text();
+  return parseCSV(text);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = splitCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+    return obj;
+  }).filter(r => {
+    const lat = parseFloat((r.lat||'').replace(',','.'));
+    const lng = parseFloat((r.long||r.lng||'').replace(',','.'));
+    return !isNaN(lat) && !isNaN(lng) && lat !== 0;
+  });
+}
+
+function splitCSVLine(line) {
+  const vals = []; let cur = '', inQ = false;
+  for (let c of line) {
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { vals.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  vals.push(cur);
+  return vals.map(v => v.trim().replace(/^"|"$/g,''));
+}
+
+// ── FILTERS ───────────────────────────────────────────────────
+function populateFilters() {
+  const data = allData[lang];
+  const c = T[lang].cols;
+  const t = T[lang];
+
+  const fill = (id, key) => {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    const vals = [...new Set(data.map(r => r[key]).filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">${t.all}</option>` +
+      vals.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+  };
+
+  fill('filter-region', c.region);
+  fill('filter-state', c.state);
+  fill('filter-feature', c.feature);
+  fill('filter-method', c.method);
+  fill('filter-cultural', c.cultural);
+}
+
+function applyFilters() {
+  const data = allData[lang];
+  const c = T[lang].cols;
+  const minP = parseInt(document.getElementById('slider-min').value);
+  const maxP = parseInt(document.getElementById('slider-max').value);
+  const region = document.getElementById('filter-region').value;
+  const state = document.getElementById('filter-state').value;
+  const feature = document.getElementById('filter-feature').value;
+  const method = document.getElementById('filter-method').value;
+  const cultural = document.getElementById('filter-cultural').value;
+
+  filtered = data.filter(r => {
+    const d = parseInt(r[c.date]) || 0;
+    const lo = Math.min(minP, maxP), hi = Math.max(minP, maxP);
+    if (d < lo || d > hi) return false;
+    if (region && r[c.region] !== region) return false;
+    if (state && r[c.state] !== state) return false;
+    if (feature && r[c.feature] !== feature) return false;
+    if (method && r[c.method] !== method) return false;
+    if (cultural && r[c.cultural] !== cultural) return false;
+    return true;
+  });
+
+  updateStats();
+  renderMarkers();
+  renderTable();
+}
+
+function resetFilters() {
+  ['region','state','feature','method','cultural'].forEach(f => {
+    document.getElementById('filter-'+f).value = '';
+  });
+  document.getElementById('slider-min').value = 25170;
+  document.getElementById('slider-max').value = 20;
+  document.getElementById('period-min-display').textContent = '25170';
+  document.getElementById('period-max-display').textContent = '20';
+  selectedRows.clear();
+  applyFilters();
+}
+
+// ── STATS ─────────────────────────────────────────────────────
+function updateStats() {
+  const c = T[lang].cols;
+  const unique = new Set(filtered.map(r => r[c.name])).size;
+  document.getElementById('count-sites').textContent = unique.toLocaleString();
+  document.getElementById('count-dates').textContent = filtered.length.toLocaleString();
+  document.getElementById('table-count').textContent = filtered.length + ' ' + T[lang].table.toLowerCase();
+}
+
+// ── MARKERS ───────────────────────────────────────────────────
+let markerMap = {}; // name -> marker
+
+function renderMarkers() {
+  markerLayer.clearLayers();
+  markerMap = {};
+
+  const c = T[lang].cols;
+  const byCoord = {};
+
+  filtered.forEach((r, i) => {
+    const lat = parseFloat((r.lat||'').replace(',','.'));
+    const lng = parseFloat((r[c.lng === 'long' ? 'long' : 'long']||'').replace(',','.'));
+    if (isNaN(lat)||isNaN(lng)) return;
+    const key = lat.toFixed(3)+','+lng.toFixed(3);
+    if (!byCoord[key]) byCoord[key] = [];
+    byCoord[key].push(r);
+  });
+
+  Object.values(byCoord).forEach(group => {
+    const r = group[0];
+    const lat = parseFloat(r.lat.replace(',','.'));
+    const lng = parseFloat(r.long.replace(',','.'));
+    const count = group.length;
+    const name = r[c.name];
+
+    const m = L.circleMarker([lat, lng], {
+      radius: count > 10 ? 9 : count > 3 ? 7 : 5,
+      fillColor: '#1F4E6B', color: '#fff', weight: 1.5,
+      opacity: 1, fillOpacity: 0.8
+    });
+
+    m.bindPopup(`
+      <div class="popup-name">${name}</div>
+      ${count > 1 ? `<div class="popup-row"><span class="popup-key">${T[lang].dates}:</span><span class="popup-val">${count}</span></div>` : ''}
+      <div class="popup-row"><span class="popup-key">${T[lang].state}:</span><span class="popup-val">${r[c.state]||'—'}</span></div>
+      <div class="popup-row"><span class="popup-key">${T[lang].feature}:</span><span class="popup-val">${r[c.feature]||'—'}</span></div>
+      <div class="popup-row"><span class="popup-key">${T[lang].method}:</span><span class="popup-val">${r[c.method]||'—'}</span></div>
+    `);
+
+    m.on('click', () => highlightByName(name));
+    markerLayer.addLayer(m);
+    markerMap[name] = m;
+  });
+}
+
+// ── TABLE ─────────────────────────────────────────────────────
+function renderTable() {
+  const t = T[lang];
+  const c = t.cols;
+  const colKeys = [c.sigla, c.name, c.state, c.region, c.feature, c.method, c.date, c.material];
+
+  document.getElementById('table-head').innerHTML =
+    '<tr>' + t.tableCols.map(h => `<th>${h}</th>`).join('') + '</tr>';
+
+  document.getElementById('table-body').innerHTML = filtered.map((r, i) => {
+    const sel = selectedRows.has(i) ? ' class="selected"' : '';
+    return `<tr${sel} onclick="rowClick(${i},event)" ondblclick="resetFilters()">
+      ${colKeys.map(k => `<td title="${r[k]||''}">${r[k]||'—'}</td>`).join('')}
+    </tr>`;
+  }).join('');
+}
+
+function rowClick(i, e) {
+  if (e.ctrlKey || e.metaKey) {
+    selectedRows.has(i) ? selectedRows.delete(i) : selectedRows.add(i);
+  } else {
+    selectedRows.clear();
+    selectedRows.add(i);
+  }
+  renderTable();
+  const name = filtered[i][T[lang].cols.name];
+  highlightByName(name);
+}
+
+function highlightByName(name) {
+  Object.entries(markerMap).forEach(([n, m]) => {
+    if (n === name) {
+      m.setStyle({ fillColor: '#c8922a', radius: 11 });
+      map.panTo(m.getLatLng());
+      m.openPopup();
+    } else {
+      m.setStyle({ fillColor: '#1F4E6B', radius: 5 });
+    }
+  });
+}
+
+// ── LANG ──────────────────────────────────────────────────────
+async function setLang(l) {
+  if (l === lang) return;
+  lang = l;
+  document.getElementById('btn-pt').classList.toggle('active', l==='pt');
+  document.getElementById('btn-en').classList.toggle('active', l==='en');
+
+  updateUI();
+
+  if (!allData[l].length) {
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('loading-text').textContent = T[l].loading;
+    try { allData[l] = await fetchSheet(l); } catch(e) { console.error(e); }
+    document.getElementById('loading').style.display = 'none';
+  }
+
+  populateFilters();
+  resetFilters();
+}
+
+function updateUI() {
+  const t = T[lang];
+  document.getElementById('header-subtitle').textContent = t.subtitle;
+  document.getElementById('lbl-stats').textContent = t.stats;
+  document.getElementById('lbl-sites').textContent = t.sites;
+  document.getElementById('lbl-dates').textContent = t.dates;
+  document.getElementById('lbl-period').textContent = t.period;
+  document.getElementById('lbl-region').textContent = t.region;
+  document.getElementById('lbl-state').textContent = t.state;
+  document.getElementById('lbl-feature').textContent = t.feature;
+  document.getElementById('lbl-method').textContent = t.method;
+  document.getElementById('lbl-cultural').textContent = t.cultural;
+  document.getElementById('lbl-table').textContent = t.table;
+  document.getElementById('btn-reset').textContent = t.reset;
+  document.getElementById('instruction').innerHTML = t.instruction;
+}
+
+// ── SLIDERS ───────────────────────────────────────────────────
+function initSliders() {
+  const sMin = document.getElementById('slider-min');
+  const sMax = document.getElementById('slider-max');
+  sMin.addEventListener('input', () => {
+    document.getElementById('period-min-display').textContent = sMin.value;
+    applyFilters();
+  });
+  sMax.addEventListener('input', () => {
+    document.getElementById('period-max-display').textContent = sMax.value;
+    applyFilters();
+  });
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+async function init() {
+  initMap();
+  initSliders();
+  updateUI();
+  try {
+    allData.pt = await fetchSheet('pt');
+  } catch(e) {
+    console.error('Erro ao carregar:', e);
+  }
+  document.getElementById('loading').style.display = 'none';
+  populateFilters();
+  resetFilters();
+}
+
+init();
+</script>
+</body>
+</html>
